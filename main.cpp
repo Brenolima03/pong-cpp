@@ -1,142 +1,158 @@
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
 #include <SDL2/SDL_timer.h>
+#include <cstdlib>
+#include <cmath>
+#include <iostream>
 
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 480
+#define SCREEN_WIDTH 640 // Width of the game window
+#define SCREEN_HEIGHT 480 // Height of the game window
+// X-coordinate for the center of the screen
+#define X_CENTER (SCREEN_WIDTH - ball.w) / 2
+// Y-coordinate for the center of the screen
+#define Y_CENTER (SCREEN_HEIGHT - ball.h) / 2
+
+using namespace std;
+
+SDL_Rect ball; // Rectangle to represent the ball's position and size
+int target_x, target_y; // Target coordinates for the ball's direction
+// Direction vectors for the ball's movement
+float x_direction = 0.0f, y_direction = 0.0f;
+// Tracks the last and current sides the ball is moving towards
+char last_side = 'l', current_side = 'l';
+
+void change_ball_direction(char side_the_ball_goes) {
+  y_direction *= -1; // Reverses the Y direction
+
+  // Adjusts x_direction based on the current side_the_ball_goes direction
+  if (side_the_ball_goes == 'r') {
+    x_direction += 0.1f; // Moves slightly to the right
+  } else if (side_the_ball_goes == 'l') {
+    x_direction -= 0.1f; // Moves slightly to the left
+  } else if (x_direction == 0.0f) {
+    // Moves the ball either to the left or right
+    x_direction = ((rand() % 2) == 0) ? 0.1f : -0.1f;
+  }
+}
+
+// Chooses a new direction for the ball
+void choose_initial_ball_direction() {
+  // Seeds the random number generator with the current time
+  srand((unsigned) time(NULL));
+
+  do {
+    // Randomly chooses new target coordinates within screen boundaries
+    target_x = rand() % SCREEN_WIDTH;
+    target_y = rand() % SCREEN_HEIGHT;
+
+    // Determines the side the board based on the direction and the X axis
+    current_side = target_x > X_CENTER ? 'r' : 'l';
+  } while (current_side == last_side);
+
+  last_side = current_side; // Updates the last side for future checks
+}
+
+// Sets the initial movement direction of the ball
+void throw_ball() {
+  choose_initial_ball_direction(); // Determines a new direction for the ball
+
+  // Calculates the difference between the current and the target position
+  float dx = target_x - ball.x;
+  float dy = target_y - ball.y;
+
+  // Calculates the distance to the target position
+  float distance = sqrt(dx * dx + dy * dy);
+
+  // Normalizes the direction vector so that its length is 1
+  x_direction = dx / distance;
+  y_direction = dy / distance;
+}
 
 int main(int argc, char *argv[]) {
-	// returns zero on success else non-zero
-	if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
-		printf("error initializing SDL: %s\n", SDL_GetError());
+  // Initializes SDL (Simple DirectMedia Layer) library
+  if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+    printf("Error initializing SDL: %s\n", SDL_GetError());
+    return 1; // Returns an error code if initialization fails
+  }
 
-	SDL_Window* win = SDL_CreateWindow(
-    "PONG", // creates a window
+  // Creates a window with the title "PONG"
+  SDL_Window* win = SDL_CreateWindow("PONG",
     SDL_WINDOWPOS_CENTERED,
     SDL_WINDOWPOS_CENTERED,
     SCREEN_WIDTH, SCREEN_HEIGHT, 0
   );
 
-	// triggers the program that controls
-	// your graphics hardware and sets flags
-	Uint32 render_flags = SDL_RENDERER_ACCELERATED;
+  // Creates a renderer for the window with hardware acceleration
+  Uint32 render_flags = SDL_RENDERER_ACCELERATED;
+  SDL_Renderer* rend = SDL_CreateRenderer(win, -1, render_flags);
 
-	// creates a renderer to render our images
-	SDL_Renderer* rend = SDL_CreateRenderer(win, -1, render_flags);
+  // Sets the ball's initial size
+  ball.w = 20; // Sets the width of the ball
+  ball.h = 20; // Sets the height of the ball
 
-	// creates a surface to load an image into the main memory
-	SDL_Surface* surface;
+  // Sets the ball's initial position to the center of the screen
+  ball.x = X_CENTER;
+  ball.y = Y_CENTER;
 
-	// please provide a path for your image
-	surface = IMG_Load("ball_icon.png");
+  int close = 0; // Flag to control the game loop
+  int speed = 5; // Speed at which the ball moves
 
-	// loads image to our graphics hardware memory.
-	SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surface);
+  throw_ball(); // Initializes the ball's movement direction
 
-	// clears main-memory
-	SDL_FreeSurface(surface);
+  // Tracks the side the ball is currently moving towards
+  char side_the_ball_goes;
 
-	// let us control our image position
-	// so that we can move it with our keyboard.
-	SDL_Rect dest;
+  while (!close) { // Main game loop
+    SDL_Event event;
 
-	// connects our texture with dest to control position
-	SDL_QueryTexture(tex, NULL, NULL, &dest.w, &dest.h);
+    // Handles SDL events, such as window close events
+    while (SDL_PollEvent(&event)) {
+      if (event.type == SDL_QUIT) {
+        close = 1; // Sets close flag to exit the loop
+      }
+    }
 
-	// adjust height and width of the ball icon.
-	// the higher the smaller the image will be.
-	dest.w /= 12;
-	dest.h /= 12;
+    // Updates the ball's position based on its direction and speed
+    ball.x += x_direction * speed;
+    ball.y += y_direction * speed;
 
-	// sets initial x-position of object
-	dest.x = (SCREEN_WIDTH - dest.w) / 2;
+    // Checks for collisions with the left or right boundaries
+    if (ball.x + ball.w >= SCREEN_WIDTH || ball.x <= 0) {
+      // Resets the ball to the center of the screen
+      ball.x = X_CENTER;
+      ball.y = Y_CENTER;
+      throw_ball(); // Re-throws the ball with a new direction
+    }
 
-	// sets initial y-position of object
-	dest.y = (SCREEN_HEIGHT - dest.h) / 2;
+    // Checks if it hits the bottom
+    if (ball.y + ball.h >= SCREEN_HEIGHT || ball.y <= 0) {
+      change_ball_direction(side_the_ball_goes);
+    }
 
-	// controls animation loop
-	int close = 0;
+    // Updates the side_the_ball_goes based on the ball's horizontal direction
+    if (x_direction > 0) {
+      side_the_ball_goes = 'r'; // Ball is moving to the right
+    } else if (x_direction < 0) {
+      side_the_ball_goes = 'l'; // Ball is moving to the left
+    } else {
+      side_the_ball_goes = 'c'; // Ball is stationary or moving vertically
+    }
 
-	// speed of box
-	int speed = 300;
+    // Clears the screen, draw the ball, and updates the display
+    SDL_SetRenderDrawColor(rend, 0, 0, 0, 255); // Sets the background to black
+    SDL_RenderClear(rend);
+    // Sets the ball color to white
+    SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
+    SDL_RenderFillRect(rend, &ball); // Draws the ball
+    SDL_RenderPresent(rend);
 
-	// animation loop
-	while (!close) {
-		SDL_Event event;
+    // Delays to maintain a frame rate of 60 FPS
+    SDL_Delay(1000 / 60);
+  }
 
-		// Events management
-		while (SDL_PollEvent(&event)) {
-			switch (event.type) {
+  // Cleans up resources before exiting
+  SDL_DestroyRenderer(rend);
+  SDL_DestroyWindow(win);
+  SDL_Quit();
 
-			case SDL_QUIT:
-				// handling of close button
-				close = 1;
-				break;
-
-			case SDL_KEYDOWN:
-				// keyboard API for key pressed
-				switch (event.key.keysym.scancode) {
-				case SDL_SCANCODE_W:
-				case SDL_SCANCODE_UP:
-					dest.y -= speed / 30;
-					break;
-				case SDL_SCANCODE_A:
-				case SDL_SCANCODE_LEFT:
-					dest.x -= speed / 30;
-					break;
-				case SDL_SCANCODE_S:
-				case SDL_SCANCODE_DOWN:
-					dest.y += speed / 30;
-					break;
-				case SDL_SCANCODE_D:
-				case SDL_SCANCODE_RIGHT:
-					dest.x += speed / 30;
-					break;
-				default:
-					break;
-				}
-			}
-		}
-
-		// right boundary
-		if (dest.x + dest.w > SCREEN_WIDTH)
-			dest.x = SCREEN_WIDTH - dest.w;
-
-		// left boundary
-		if (dest.x < 0)
-			dest.x = 0;
-
-		// bottom boundary
-		if (dest.y + dest.h > SCREEN_HEIGHT)
-			dest.y = SCREEN_HEIGHT - dest.h;
-
-		// upper boundary
-		if (dest.y < 0)
-			dest.y = 0;
-
-		// clears the screen
-		SDL_RenderClear(rend);
-		SDL_RenderCopy(rend, tex, NULL, &dest);
-
-		// triggers the double buffers
-		// for multiple rendering
-		SDL_RenderPresent(rend);
-
-		// calculates to 60 fps
-		SDL_Delay(1000 / 60);
-	}
-
-	// destroy texture
-	SDL_DestroyTexture(tex);
-
-	// destroy renderer
-	SDL_DestroyRenderer(rend);
-
-	// destroy window
-	SDL_DestroyWindow(win);
-
-	// close SDL
-	SDL_Quit();
-
-	return 0;
+  return 0;
 }
