@@ -7,14 +7,13 @@
 
 #define SCREEN_WIDTH 640 // Width of the game window
 #define SCREEN_HEIGHT 480 // Height of the game window
-// X-coordinate for the center of the screen
-#define X_CENTER (SCREEN_WIDTH - ball.w) / 2
-// Y-coordinate for the center of the screen
-#define Y_CENTER (SCREEN_HEIGHT - ball.h) / 2
+#define POINTS_TO_FINISH_GAME 2
 
 using namespace std;
 
 SDL_Rect ball; // Rectangle to represent the ball's position and size
+int left_score = 0;
+int right_score = 0;
 int target_x, target_y; // Target coordinates for the ball's direction
 // Direction vectors for the ball's movement
 float x_direction = 0.0f, y_direction = 0.0f;
@@ -59,7 +58,7 @@ void choose_initial_ball_direction() {
     target_y = rand() % SCREEN_HEIGHT;
 
     // Determines the side the board based on the direction and the X axis
-    current_side = target_x > X_CENTER ? 'r' : 'l';
+    current_side = target_x > SCREEN_WIDTH / 2 ? 'r' : 'l';
   } while (current_side == last_side);
 
   last_side = current_side; // Updates the last side for future checks
@@ -81,9 +80,21 @@ void throw_ball() {
   y_direction = dy / distance;
 }
 
+bool keep_playing() {
+  char response;
+  cout << "Do you wish to keep playing? [y/n]" << endl;
+  cin >> response;
+  if (response != 'y')
+    return false;
+
+  left_score = 0;
+  right_score = 0;
+  return true;
+}
+
 void go_to_next_turn() {
-  ball.x = X_CENTER;
-  ball.y = Y_CENTER;
+  ball.x = (SCREEN_WIDTH - ball.w) / 2;
+  ball.y = (SCREEN_HEIGHT - ball.h) / 2;
   throw_ball();
 }
 
@@ -120,19 +131,18 @@ int main(int argc, char *argv[]) {
   ball.h = 20; // Sets the height of the ball
 
   // Sets the ball's initial position to the center of the screen
-  ball.x = X_CENTER;
-  ball.y = Y_CENTER;
+  ball.x = (SCREEN_WIDTH - ball.w) / 2;
+  ball.y = (SCREEN_HEIGHT - ball.h) / 2;
 
   int close = 0; // Flag to control the game loop
   int speed = 5; // Speed at which the ball moves
-  int left_score = 0;
-  int right_score = 0;
 
   // Tracks the side the ball is currently moving towards
   char side_the_ball_goes;
   throw_ball();
+  bool run_game = true;
 
-  while (!close) {
+  while (!close && run_game) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
@@ -157,11 +167,11 @@ int main(int argc, char *argv[]) {
     }
 
     if (x_direction > 0) {
-      side_the_ball_goes = 'r'; // Ball is moving to the right
+      side_the_ball_goes = 'r';
     } else if (x_direction < 0) {
-      side_the_ball_goes = 'l'; // Ball is moving to the left
+      side_the_ball_goes = 'l';
     } else {
-      side_the_ball_goes = 'c'; // Ball is stationary or moving vertically
+      side_the_ball_goes = 'c';
     }
 
     SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
@@ -213,6 +223,16 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(right_score_texture);
 
     SDL_RenderPresent(rend);
+
+    if (
+      left_score == POINTS_TO_FINISH_GAME ||
+      right_score == POINTS_TO_FINISH_GAME
+    ) {
+      run_game = keep_playing();
+      if (run_game) {
+        go_to_next_turn();
+      }
+    }
 
     SDL_Delay(1000 / 60);
   }
