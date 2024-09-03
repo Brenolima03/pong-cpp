@@ -21,6 +21,19 @@ float x_direction = 0.0f, y_direction = 0.0f;
 // Tracks the last and current sides the ball is moving towards
 char last_side = 'l', current_side = 'l';
 
+// Creates a texture from a string
+SDL_Texture* creates_text_texture(
+  SDL_Renderer* renderer, TTF_Font* font,
+  const std::string& text, SDL_Color color
+) {
+  SDL_Surface* textSurface = TTF_RenderText_Solid(font, text.c_str(), color);
+  SDL_Texture* textTexture = SDL_CreateTextureFromSurface(
+    renderer, textSurface
+  );
+  SDL_FreeSurface(textSurface); // Frees the surface after creating the texture
+  return textTexture;
+}
+
 void change_ball_direction(char side_the_ball_goes) {
   y_direction *= -1; // Reverses the Y direction
 
@@ -68,17 +81,10 @@ void throw_ball() {
   y_direction = dy / distance;
 }
 
-// Creates a texture from a string
-SDL_Texture* creates_text_texture(
-  SDL_Renderer* renderer, TTF_Font* font,
-  const std::string& text, SDL_Color color
-) {
-  SDL_Surface* textSurface = TTF_RenderText_Solid(font, text.c_str(), color);
-  SDL_Texture* textTexture = SDL_CreateTextureFromSurface(
-    renderer, textSurface
-  );
-  SDL_FreeSurface(textSurface); // Frees the surface after creating the texture
-  return textTexture;
+void go_to_next_turn() {
+  ball.x = X_CENTER;
+  ball.y = Y_CENTER;
+  throw_ball();
 }
 
 int main(int argc, char *argv[]) {
@@ -137,11 +143,13 @@ int main(int argc, char *argv[]) {
     ball.x += x_direction * speed;
     ball.y += y_direction * speed;
 
-    if (ball.x + ball.w >= SCREEN_WIDTH || ball.x <= 0) {
-      ball.x = X_CENTER;
-      ball.y = Y_CENTER;
-      throw_ball();
-      // Update scores here if needed
+    if (ball.x + ball.w >= SCREEN_WIDTH) {
+      left_score += 1;
+      go_to_next_turn();
+    }
+    if (ball.x <= 0) {
+      right_score += 1;
+      go_to_next_turn();
     }
 
     if (ball.y + ball.h >= SCREEN_HEIGHT || ball.y <= 0) {
