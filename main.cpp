@@ -7,7 +7,8 @@
 
 #define SCREEN_WIDTH 640 // Width of the game window
 #define SCREEN_HEIGHT 480 // Height of the game window
-#define POINTS_TO_FINISH_GAME 2
+#define MAX_SCORE 2
+#define WINNING_MESSAGE_FONT_SIZE 48 // Smaller font size for winning message
 
 using namespace std;
 
@@ -98,6 +99,31 @@ void go_to_next_turn() {
   throw_ball();
 }
 
+void render_winning_message(
+  SDL_Renderer* rend, TTF_Font* font, const std::string& winner
+) {
+  SDL_Color textColor = {255, 255, 255, 255}; // White color
+  SDL_Texture* message_texture = creates_text_texture(
+    rend, font, winner, textColor
+  );
+
+  int text_width, text_height;
+  SDL_QueryTexture(
+    message_texture, NULL, NULL, &text_width, &text_height
+  );
+
+  // Position the message at the center of the screen
+  SDL_Rect message_rect = {
+    (SCREEN_WIDTH - text_width) / 2,
+    (SCREEN_HEIGHT - text_height) / 2,
+    text_width,
+    text_height
+  };
+
+  SDL_RenderCopy(rend, message_texture, NULL, &message_rect);
+  SDL_DestroyTexture(message_texture);
+}
+
 int main(int argc, char *argv[]) {
   // Initializes SDL (Simple DirectMedia Layer) library
   if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
@@ -122,8 +148,11 @@ int main(int argc, char *argv[]) {
   Uint32 render_flags = SDL_RENDERER_ACCELERATED;
   SDL_Renderer* rend = SDL_CreateRenderer(win, -1, render_flags);
 
-  // Load the font
-  TTF_Font* font = TTF_OpenFont("bit5x3.ttf", 96); // Increased font size
+  // Load fonts
+  TTF_Font* score_font = TTF_OpenFont("bit5x3.ttf", 96);
+  TTF_Font* message_font = TTF_OpenFont(
+    "bit5x3.ttf", WINNING_MESSAGE_FONT_SIZE
+  );
   SDL_Color textColor = {255, 255, 255, 255}; // White color
 
   // Sets the ball's initial size
@@ -177,27 +206,30 @@ int main(int argc, char *argv[]) {
     SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
     SDL_RenderClear(rend);
 
-    SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
-    int screen_separator_size = 5;
-    int spacing = 10;
+    // Draw the separator squares only if there is no winner yet
+    if (left_score < MAX_SCORE && right_score < MAX_SCORE) {
+      SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
+      int screen_separator_size = 5;
+      int spacing = 10;
 
-    for (int y = 0; y < SCREEN_HEIGHT; y += screen_separator_size + spacing) {
-      SDL_Rect square;
-      square.w = screen_separator_size;
-      square.h = screen_separator_size;
-      square.x = (SCREEN_WIDTH / 2) - (screen_separator_size / 2);
-      square.y = y;
-      SDL_RenderFillRect(rend, &square);
+      for (int y = 0; y < SCREEN_HEIGHT; y += screen_separator_size + spacing) {
+        SDL_Rect square;
+        square.w = screen_separator_size;
+        square.h = screen_separator_size;
+        square.x = (SCREEN_WIDTH / 2) - (screen_separator_size / 2);
+        square.y = y;
+        SDL_RenderFillRect(rend, &square);
+      }
     }
 
     SDL_RenderFillRect(rend, &ball);
 
     // Create and render score textures
     SDL_Texture* left_score_texture = creates_text_texture(
-      rend, font, std::to_string(left_score), textColor
+      rend, score_font, std::to_string(left_score), textColor
     );
     SDL_Texture* right_score_texture = creates_text_texture(
-      rend, font, std::to_string(right_score), textColor
+      rend, score_font, std::to_string(right_score), textColor
     );
 
     int text_width, text_height;
@@ -222,22 +254,26 @@ int main(int argc, char *argv[]) {
     SDL_DestroyTexture(left_score_texture);
     SDL_DestroyTexture(right_score_texture);
 
-    SDL_RenderPresent(rend);
+    if (left_score == MAX_SCORE || right_score == MAX_SCORE) {
+      string winner =
+        left_score == MAX_SCORE ? "Player 1 Wins!" : "Player 2 Wins!";
 
-    if (
-      left_score == POINTS_TO_FINISH_GAME ||
-      right_score == POINTS_TO_FINISH_GAME
-    ) {
+      render_winning_message(rend, message_font, winner);
+      SDL_RenderPresent(rend);
+      SDL_Delay(2000); // Display the message for 2 seconds
       run_game = keep_playing();
       if (run_game) {
         go_to_next_turn();
       }
+    } else {
+      SDL_RenderPresent(rend);
     }
 
     SDL_Delay(1000 / 60);
   }
 
-  TTF_CloseFont(font);
+  TTF_CloseFont(score_font);
+  TTF_CloseFont(message_font);
   TTF_Quit();
 
   // Cleans up resources before exiting
