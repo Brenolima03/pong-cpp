@@ -7,34 +7,29 @@
 
 #define SCREEN_WIDTH 640 // Width of the game window
 #define SCREEN_HEIGHT 480 // Height of the game window
-#define MAX_SCORE 2
-#define WINNING_MESSAGE_FONT_SIZE 48 // Smaller font size for winning message
+#define MAX_SCORE 1
 
 using namespace std;
 
 SDL_Rect ball; // Rectangle to represent the ball's position and size
-int left_score = 0;
-int right_score = 0;
-int target_x, target_y; // Target coordinates for the ball's direction
+int left_score = 0, right_score = 0, target_x, target_y;
 // Direction vectors for the ball's movement
 float x_direction = 0.0f, y_direction = 0.0f;
 // Tracks the last and current sides the ball is moving towards
-char last_side = 'l', current_side = 'l';
+char last_side = 'l', current_side = 'l', side_the_ball_goes;
 
-// Creates a texture from a string
 SDL_Texture* creates_text_texture(
-  SDL_Renderer* renderer, TTF_Font* font,
-  const std::string& text, SDL_Color color
+  SDL_Renderer* renderer, TTF_Font* font, const string& text, SDL_Color color
 ) {
-  SDL_Surface* textSurface = TTF_RenderText_Solid(font, text.c_str(), color);
-  SDL_Texture* textTexture = SDL_CreateTextureFromSurface(
-    renderer, textSurface
+  SDL_Surface* text_surface = TTF_RenderText_Solid(font, text.c_str(), color);
+  SDL_Texture* text_texture = SDL_CreateTextureFromSurface(
+    renderer, text_surface
   );
-  SDL_FreeSurface(textSurface); // Frees the surface after creating the texture
-  return textTexture;
+  SDL_FreeSurface(text_surface); // Frees the surface after creating the texture
+  return text_texture;
 }
 
-void change_ball_direction(char side_the_ball_goes) {
+void change_ball_direction() {
   y_direction *= -1; // Reverses the Y direction
 
   // Adjusts x_direction based on the current side_the_ball_goes direction
@@ -81,41 +76,84 @@ void throw_ball() {
   y_direction = dy / distance;
 }
 
-bool keep_playing() {
-  char response;
-  cout << "Do you wish to keep playing? [y/n]" << endl;
-  cin >> response;
-  if (response != 'y')
-    return false;
+bool next_match(SDL_Renderer* rend, TTF_Font* font) {
+  SDL_Color text_color = {255, 255, 255, 255}; // White color
+  std::string continue_message = "Press Enter to continue";
+
+  SDL_Texture* message_texture = creates_text_texture(
+    rend, font, continue_message, text_color
+  );
+
+  int text_width, text_height;
+  SDL_QueryTexture(message_texture, NULL, NULL, &text_width, &text_height);
+
+  // Position the message at the center of the screen
+  SDL_Rect message_rect = {
+    (SCREEN_WIDTH - text_width) / 2,
+    (SCREEN_HEIGHT - text_height) / 2 - 50,
+    text_width,
+    text_height
+  };
+
+  SDL_RenderCopy(rend, message_texture, NULL, &message_rect);
+  SDL_RenderPresent(rend); // Update the renderer to show the message
+
+  SDL_DestroyTexture(message_texture);
+
+  // Wait for user input
+  bool continue_game = false;
+  bool waiting_for_input = true;
+  while (waiting_for_input) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      if (event.type == SDL_KEYDOWN) {
+        switch (event.key.keysym.sym) {
+          case SDLK_RETURN:  // Enter key to continue
+            continue_game = true;
+            waiting_for_input = false;
+            break;
+          case SDLK_ESCAPE: // Escape key to close the window
+            waiting_for_input = false;
+            break;
+          default:
+            break;
+        }
+      } else if (event.type == SDL_QUIT) { // Window close button
+        waiting_for_input = false;
+      }
+    }
+  }
+
+  if (!continue_game) {
+    SDL_Quit(); // Clean up and quit SDL
+  }
 
   left_score = 0;
   right_score = 0;
-  return true;
+  return continue_game;
 }
 
-void go_to_next_turn() {
+void next_turn() {
   ball.x = (SCREEN_WIDTH - ball.w) / 2;
   ball.y = (SCREEN_HEIGHT - ball.h) / 2;
   throw_ball();
 }
 
 void render_winning_message(
-  SDL_Renderer* rend, TTF_Font* font, const std::string& winner
+  SDL_Renderer* rend, TTF_Font* font, const string& winner
 ) {
-  SDL_Color textColor = {255, 255, 255, 255}; // White color
+  SDL_Color text_color = {255, 255, 255, 255}; // White color
   SDL_Texture* message_texture = creates_text_texture(
-    rend, font, winner, textColor
+    rend, font, winner, text_color
   );
 
   int text_width, text_height;
-  SDL_QueryTexture(
-    message_texture, NULL, NULL, &text_width, &text_height
-  );
+  SDL_QueryTexture(message_texture, NULL, NULL, &text_width, &text_height);
 
   // Position the message at the center of the screen
   SDL_Rect message_rect = {
     (SCREEN_WIDTH - text_width) / 2,
-    (SCREEN_HEIGHT - text_height) / 2,
+    (SCREEN_HEIGHT - text_height) / 2 - 100,
     text_width,
     text_height
   };
@@ -150,10 +188,8 @@ int main(int argc, char *argv[]) {
 
   // Load fonts
   TTF_Font* score_font = TTF_OpenFont("bit5x3.ttf", 96);
-  TTF_Font* message_font = TTF_OpenFont(
-    "bit5x3.ttf", WINNING_MESSAGE_FONT_SIZE
-  );
-  SDL_Color textColor = {255, 255, 255, 255}; // White color
+  TTF_Font* message_font = TTF_OpenFont("bit5x3.ttf", 48);
+  SDL_Color text_color = {255, 255, 255, 255}; // White color
 
   // Sets the ball's initial size
   ball.w = 20; // Sets the width of the ball
@@ -166,16 +202,20 @@ int main(int argc, char *argv[]) {
   int close = 0; // Flag to control the game loop
   int speed = 5; // Speed at which the ball moves
 
-  // Tracks the side the ball is currently moving towards
-  char side_the_ball_goes;
   throw_ball();
-  bool run_game = true;
+  bool play = true;
 
-  while (!close && run_game) {
+  while (!close && play) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       if (event.type == SDL_QUIT) {
-        close = 1;
+        // Close the game when the window X button is pressed
+        close = true;
+      } else if (event.type == SDL_KEYDOWN) {
+        // Close the game when Esc is pressed
+        if (event.key.keysym.sym == SDLK_ESCAPE) {
+          close = true;
+        }
       }
     }
 
@@ -184,15 +224,15 @@ int main(int argc, char *argv[]) {
 
     if (ball.x + ball.w >= SCREEN_WIDTH) {
       left_score += 1;
-      go_to_next_turn();
+      next_turn();
     }
     if (ball.x <= 0) {
       right_score += 1;
-      go_to_next_turn();
+      next_turn();
     }
 
     if (ball.y + ball.h >= SCREEN_HEIGHT || ball.y <= 0) {
-      change_ball_direction(side_the_ball_goes);
+      change_ball_direction();
     }
 
     if (x_direction > 0) {
@@ -209,14 +249,14 @@ int main(int argc, char *argv[]) {
     // Draw the separator squares only if there is no winner yet
     if (left_score < MAX_SCORE && right_score < MAX_SCORE) {
       SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
-      int screen_separator_size = 5;
+      int screen_divisor_height = 10;
       int spacing = 10;
 
-      for (int y = 0; y < SCREEN_HEIGHT; y += screen_separator_size + spacing) {
+      for (int y = 5; y < SCREEN_HEIGHT; y += screen_divisor_height + spacing) {
         SDL_Rect square;
-        square.w = screen_separator_size;
-        square.h = screen_separator_size;
-        square.x = (SCREEN_WIDTH / 2) - (screen_separator_size / 2);
+        square.w = 1;
+        square.h = screen_divisor_height;
+        square.x = (SCREEN_WIDTH / 2) - (screen_divisor_height / 2);
         square.y = y;
         SDL_RenderFillRect(rend, &square);
       }
@@ -226,10 +266,10 @@ int main(int argc, char *argv[]) {
 
     // Create and render score textures
     SDL_Texture* left_score_texture = creates_text_texture(
-      rend, score_font, std::to_string(left_score), textColor
+      rend, score_font, to_string(left_score), text_color
     );
     SDL_Texture* right_score_texture = creates_text_texture(
-      rend, score_font, std::to_string(right_score), textColor
+      rend, score_font, to_string(right_score), text_color
     );
 
     int text_width, text_height;
@@ -244,9 +284,9 @@ int main(int argc, char *argv[]) {
     int left_score_x = (SCREEN_WIDTH / 4) - (text_width / 2);
     int right_score_x = (3 * SCREEN_WIDTH / 4) - (text_width / 2);
 
-    // Position scores near the top of the screen
-    SDL_Rect left_score_obj = {left_score_x, 10, text_width, text_height};
-    SDL_Rect right_score_obj = {right_score_x, 10, text_width, text_height};
+    // Position scores with a padding of 30
+    SDL_Rect left_score_obj = {left_score_x, 30, text_width, text_height};
+    SDL_Rect right_score_obj = {right_score_x, 30, text_width, text_height};
 
     SDL_RenderCopy(rend, left_score_texture, NULL, &left_score_obj);
     SDL_RenderCopy(rend, right_score_texture, NULL, &right_score_obj);
@@ -260,10 +300,9 @@ int main(int argc, char *argv[]) {
 
       render_winning_message(rend, message_font, winner);
       SDL_RenderPresent(rend);
-      SDL_Delay(2000); // Display the message for 2 seconds
-      run_game = keep_playing();
-      if (run_game) {
-        go_to_next_turn();
+      play = next_match(rend, message_font);
+      if (play) {
+        next_turn();
       }
     } else {
       SDL_RenderPresent(rend);
