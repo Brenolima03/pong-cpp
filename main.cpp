@@ -7,12 +7,12 @@
 
 #define SCREEN_WIDTH 640 // Width of the game window
 #define SCREEN_HEIGHT 480 // Height of the game window
-#define MAX_SCORE 1
+#define MAX_SCORE 10
 
 using namespace std;
 
 SDL_Rect ball; // Rectangle to represent the ball's position and size
-int left_score = 0, right_score = 0, target_x, target_y;
+int left_score = 0, right_score = 0, target_x, target_y, speed = 5;
 // Direction vectors for the ball's movement
 float x_direction = 0.0f, y_direction = 0.0f;
 // Tracks the last and current sides the ball is moving towards
@@ -29,7 +29,7 @@ SDL_Texture* creates_text_texture(
   return text_texture;
 }
 
-void render_racket(SDL_Renderer* renderer, int x, int y, int width, int height) {
+void render_racket(SDL_Renderer* rend, int x, int y, int width, int height) {
   // Sets the rectangle's position and size
   SDL_Rect racket;
   racket.x = x;
@@ -38,13 +38,32 @@ void render_racket(SDL_Renderer* renderer, int x, int y, int width, int height) 
   racket.h = height;
 
   // Sets the color for the racket (white in this case)
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+  SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
 
   // Renders the racket as a filled rectangle
-  SDL_RenderFillRect(renderer, &racket);
+  SDL_RenderFillRect(rend, &racket);
 }
 
-void change_ball_direction() {
+void change_ball_direction_when_touching_racket() {
+  // Reverse the X direction to simulate a bounce
+  x_direction *= -1;
+
+  // Adjust Y direction based on the direction the ball was moving
+  if (y_direction > 0) {
+    // Ball was moving down
+    // Move slightly down or adjust slightly if hitting from below
+    y_direction += 0.1f;
+  } else if (y_direction < 0) {
+    // Ball was moving up
+    // Move slightly up or adjust slightly if hitting from above
+    y_direction -= 0.1f;
+  }
+
+  // Increase speed for each bounce
+  speed += 1;
+}
+
+void change_ball_direction_when_touching_top_or_bottom() {
   y_direction *= -1; // Reverses the Y direction
 
   // Adjusts x_direction based on the current side_the_ball_goes direction
@@ -151,6 +170,7 @@ bool next_match(SDL_Renderer* rend, TTF_Font* font) {
 void next_turn() {
   ball.x = (SCREEN_WIDTH - ball.w) / 2;
   ball.y = (SCREEN_HEIGHT - ball.h) / 2;
+  speed = 5;
   throw_ball();
 }
 
@@ -215,7 +235,6 @@ int main(int argc, char *argv[]) {
   ball.y = (SCREEN_HEIGHT - ball.h) / 2;
 
   int close = 0; // Flag to control the game loop
-  int speed = 5; // Speed at which the ball moves
 
   throw_ball();
   bool play = true;
@@ -247,7 +266,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (ball.y + ball.h >= SCREEN_HEIGHT || ball.y <= 0) {
-      change_ball_direction();
+      change_ball_direction_when_touching_top_or_bottom();
     }
 
     if (x_direction > 0) {
@@ -280,7 +299,7 @@ int main(int argc, char *argv[]) {
     int left_racket_y = (SCREEN_HEIGHT - 100) / 2;
     int right_racket_x = SCREEN_WIDTH - 100;
     int right_racket_y = (SCREEN_HEIGHT - 100) / 2;
-    int racket_width = 10;
+    int racket_width = 2;
     int racket_height = 100;
 
     // Create and render the players' rackets
@@ -290,6 +309,26 @@ int main(int argc, char *argv[]) {
     render_racket(
       rend, right_racket_x, right_racket_y, racket_width, racket_height
     );
+
+    if (x_direction < 0) {
+      if (ball.x <= left_racket_x + racket_width &&
+          ball.x + ball.w >= left_racket_x &&
+          ball.y + ball.h >= left_racket_y &&
+          ball.y <= left_racket_y + racket_height) {
+        change_ball_direction_when_touching_racket();
+      }
+    }
+
+    if (x_direction > 0) {
+      if (ball.x + ball.w >= right_racket_x &&
+          ball.x <= right_racket_x + racket_width &&
+          ball.y + ball.h >= right_racket_y &&
+          ball.y <= right_racket_y + racket_height) {
+        change_ball_direction_when_touching_racket();
+      }
+    }
+
+    // Create and render the ball
     SDL_RenderFillRect(rend, &ball);
 
     // Create and render score textures
