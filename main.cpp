@@ -29,6 +29,21 @@ SDL_Texture* creates_text_texture(
   return text_texture;
 }
 
+void render_racket(SDL_Renderer* renderer, int x, int y, int width, int height) {
+  // Sets the rectangle's position and size
+  SDL_Rect racket;
+  racket.x = x;
+  racket.y = y;
+  racket.w = width;
+  racket.h = height;
+
+  // Sets the color for the racket (white in this case)
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+  // Renders the racket as a filled rectangle
+  SDL_RenderFillRect(renderer, &racket);
+}
+
 void change_ball_direction() {
   y_direction *= -1; // Reverses the Y direction
 
@@ -90,7 +105,7 @@ bool next_match(SDL_Renderer* rend, TTF_Font* font) {
   // Position the message at the center of the screen
   SDL_Rect message_rect = {
     (SCREEN_WIDTH - text_width) / 2,
-    (SCREEN_HEIGHT - text_height) / 2 - 50,
+    (SCREEN_HEIGHT - text_height) / 2 - 75,
     text_width,
     text_height
   };
@@ -153,7 +168,7 @@ void render_winning_message(
   // Position the message at the center of the screen
   SDL_Rect message_rect = {
     (SCREEN_WIDTH - text_width) / 2,
-    (SCREEN_HEIGHT - text_height) / 2 - 100,
+    (SCREEN_HEIGHT - text_height) / 2 - 115,
     text_width,
     text_height
   };
@@ -261,7 +276,20 @@ int main(int argc, char *argv[]) {
         SDL_RenderFillRect(rend, &square);
       }
     }
+    int left_racket_x = 100;
+    int left_racket_y = (SCREEN_HEIGHT - 100) / 2;
+    int right_racket_x = SCREEN_WIDTH - 100;
+    int right_racket_y = (SCREEN_HEIGHT - 100) / 2;
+    int racket_width = 10;
+    int racket_height = 100;
 
+    // Create and render the players' rackets
+    render_racket(
+      rend, left_racket_x, left_racket_y, racket_width, racket_height
+    );
+    render_racket(
+      rend, right_racket_x, right_racket_y, racket_width, racket_height
+    );
     SDL_RenderFillRect(rend, &ball);
 
     // Create and render score textures
