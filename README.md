@@ -21,7 +21,7 @@ sudo apt-get install g++ libsdl2-dev libsdl2-image-dev
 
 ## Compilation and execution
 ```bash
-g++ main.cpp -o main -lSDL2 -lSDL2_image && ./main
+g++ main.cpp -o main -lSDL2 -lSDL2_ttf && ./main
 ```
 
 ## License
