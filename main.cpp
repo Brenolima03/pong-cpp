@@ -12,7 +12,19 @@
 using namespace std;
 
 SDL_Rect ball; // Rectangle to represent the ball's position and size
-int left_score = 0, right_score = 0, target_x, target_y, speed = 5;
+// Scores and target positions
+int left_score, right_score, target_x, target_y,
+
+// Speeds
+ball_speed = 5,
+rackets_speed = 10,
+
+// Racket positions
+left_racket_x, right_racket_x, left_racket_y, right_racket_y,
+
+// Racket dimensions
+racket_width = 2, racket_height = 100;
+
 // Direction vectors for the ball's movement
 float x_direction = 0.0f, y_direction = 0.0f;
 // Tracks the last and current sides the ball is moving towards
@@ -29,13 +41,30 @@ SDL_Texture* creates_text_texture(
   return text_texture;
 }
 
-void render_racket(SDL_Renderer* rend, int x, int y, int width, int height) {
+void reset_rackets_positions() {
+  left_racket_x = 100;
+  left_racket_y = (SCREEN_HEIGHT - 100) / 2;
+  right_racket_x = SCREEN_WIDTH - 100;
+  right_racket_y = (SCREEN_HEIGHT - 100) / 2;
+}
+
+void clear_scores() {
+  left_score = 0;
+  right_score = 0;
+}
+
+void start_turn() {
+  clear_scores();
+  reset_rackets_positions();
+}
+
+void render_racket(SDL_Renderer* rend, int x, int y) {
   // Sets the rectangle's position and size
   SDL_Rect racket;
   racket.x = x;
   racket.y = y;
-  racket.w = width;
-  racket.h = height;
+  racket.w = racket_width;
+  racket.h = racket_height;
 
   // Sets the color for the racket (white in this case)
   SDL_SetRenderDrawColor(rend, 255, 255, 255, 255);
@@ -59,8 +88,44 @@ void change_ball_direction_when_touching_racket() {
     y_direction -= 0.1f;
   }
 
-  // Increase speed for each bounce
-  speed += 1;
+  // Increase ball_speed for each bounce
+  ball_speed += 1;
+}
+
+void handle_racket_movement(
+  SDL_Event &event, int &left_racket_y, int &right_racket_y,
+  int screen_height, int racket_height
+) {
+  // Variables to track key states
+  const Uint8* state = SDL_GetKeyboardState(NULL);
+
+  // Move left racket with 'W' and 'S' keys
+  if (state[SDL_SCANCODE_W]) {
+    // Move up but prevent going out of bounds
+    if (left_racket_y > 0) {
+      left_racket_y -= rackets_speed; // Adjust ball_speed here
+    }
+  }
+  if (state[SDL_SCANCODE_S]) {
+    // Move down but prevent going out of bounds
+    if (left_racket_y + racket_height < screen_height) {
+      left_racket_y += rackets_speed; // Adjust ball_speed here
+    }
+  }
+
+  // Move right racket with arrow keys
+  if (state[SDL_SCANCODE_UP]) {
+    // Move up but prevent going out of bounds
+    if (right_racket_y > 0) {
+      right_racket_y -= rackets_speed; // Adjust ball_speed here
+    }
+  }
+  if (state[SDL_SCANCODE_DOWN]) {
+    // Move down but prevent going out of bounds
+    if (right_racket_y + racket_height < screen_height) {
+      right_racket_y += rackets_speed; // Adjust ball_speed here
+    }
+  }
 }
 
 void change_ball_direction_when_touching_top_or_bottom() {
@@ -112,7 +177,7 @@ void throw_ball() {
 
 bool next_match(SDL_Renderer* rend, TTF_Font* font) {
   SDL_Color text_color = {255, 255, 255, 255}; // White color
-  std::string continue_message = "Press Enter to continue";
+  string continue_message = "Press Enter to continue";
 
   SDL_Texture* message_texture = creates_text_texture(
     rend, font, continue_message, text_color
@@ -152,6 +217,9 @@ bool next_match(SDL_Renderer* rend, TTF_Font* font) {
           default:
             break;
         }
+        start_turn();
+        render_racket(rend, left_racket_x, left_racket_y);
+        render_racket(rend, right_racket_x - 100, right_racket_y);
       } else if (event.type == SDL_QUIT) { // Window close button
         waiting_for_input = false;
       }
@@ -162,15 +230,14 @@ bool next_match(SDL_Renderer* rend, TTF_Font* font) {
     SDL_Quit(); // Clean up and quit SDL
   }
 
-  left_score = 0;
-  right_score = 0;
   return continue_game;
 }
 
 void next_turn() {
+  reset_rackets_positions();
   ball.x = (SCREEN_WIDTH - ball.w) / 2;
   ball.y = (SCREEN_HEIGHT - ball.h) / 2;
-  speed = 5;
+  ball_speed = 5;
   throw_ball();
 }
 
@@ -239,22 +306,25 @@ int main(int argc, char *argv[]) {
   throw_ball();
   bool play = true;
 
+  start_turn();
+
   while (!close && play) {
     SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      if (event.type == SDL_QUIT) {
+    while (SDL_PollEvent(&event))
+      if (event.type == SDL_QUIT)
         // Close the game when the window X button is pressed
         close = true;
-      } else if (event.type == SDL_KEYDOWN) {
+      else if (event.type == SDL_KEYDOWN)
         // Close the game when Esc is pressed
-        if (event.key.keysym.sym == SDLK_ESCAPE) {
+        if (event.key.keysym.sym == SDLK_ESCAPE)
           close = true;
-        }
-      }
-    }
 
-    ball.x += x_direction * speed;
-    ball.y += y_direction * speed;
+    handle_racket_movement(
+      event, left_racket_y, right_racket_y, SCREEN_HEIGHT, racket_height
+    );
+
+    ball.x += x_direction * ball_speed;
+    ball.y += y_direction * ball_speed;
 
     if (ball.x + ball.w >= SCREEN_WIDTH) {
       left_score += 1;
@@ -265,17 +335,12 @@ int main(int argc, char *argv[]) {
       next_turn();
     }
 
-    if (ball.y + ball.h >= SCREEN_HEIGHT || ball.y <= 0) {
+    if (ball.y + ball.h >= SCREEN_HEIGHT || ball.y <= 0)
       change_ball_direction_when_touching_top_or_bottom();
-    }
 
-    if (x_direction > 0) {
-      side_the_ball_goes = 'r';
-    } else if (x_direction < 0) {
-      side_the_ball_goes = 'l';
-    } else {
-      side_the_ball_goes = 'c';
-    }
+    if (x_direction > 0) side_the_ball_goes = 'r';
+    else if (x_direction < 0) side_the_ball_goes = 'l';
+    else side_the_ball_goes = 'c';
 
     SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
     SDL_RenderClear(rend);
@@ -295,38 +360,25 @@ int main(int argc, char *argv[]) {
         SDL_RenderFillRect(rend, &square);
       }
     }
-    int left_racket_x = 100;
-    int left_racket_y = (SCREEN_HEIGHT - 100) / 2;
-    int right_racket_x = SCREEN_WIDTH - 100;
-    int right_racket_y = (SCREEN_HEIGHT - 100) / 2;
-    int racket_width = 2;
-    int racket_height = 100;
-
     // Create and render the players' rackets
-    render_racket(
-      rend, left_racket_x, left_racket_y, racket_width, racket_height
-    );
-    render_racket(
-      rend, right_racket_x, right_racket_y, racket_width, racket_height
-    );
+    render_racket(rend, left_racket_x, left_racket_y);
+    render_racket(rend, right_racket_x, right_racket_y);
 
-    if (x_direction < 0) {
-      if (ball.x <= left_racket_x + racket_width &&
-          ball.x + ball.w >= left_racket_x &&
-          ball.y + ball.h >= left_racket_y &&
-          ball.y <= left_racket_y + racket_height) {
-        change_ball_direction_when_touching_racket();
-      }
-    }
+    if (x_direction < 0)
+      if (
+        ball.x <= left_racket_x + racket_width &&
+        ball.x + ball.w >= left_racket_x &&
+        ball.y + ball.h >= left_racket_y &&
+        ball.y <= left_racket_y + racket_height
+      ) change_ball_direction_when_touching_racket();
 
-    if (x_direction > 0) {
-      if (ball.x + ball.w >= right_racket_x &&
-          ball.x <= right_racket_x + racket_width &&
-          ball.y + ball.h >= right_racket_y &&
-          ball.y <= right_racket_y + racket_height) {
-        change_ball_direction_when_touching_racket();
-      }
-    }
+    if (x_direction > 0)
+      if (
+        ball.x + ball.w >= right_racket_x &&
+        ball.x <= right_racket_x + racket_width &&
+        ball.y + ball.h >= right_racket_y &&
+        ball.y <= right_racket_y + racket_height
+      ) change_ball_direction_when_touching_racket();
 
     // Create and render the ball
     SDL_RenderFillRect(rend, &ball);
@@ -368,12 +420,8 @@ int main(int argc, char *argv[]) {
       render_winning_message(rend, message_font, winner);
       SDL_RenderPresent(rend);
       play = next_match(rend, message_font);
-      if (play) {
-        next_turn();
-      }
-    } else {
-      SDL_RenderPresent(rend);
-    }
+      if (play) next_turn();
+    } else  SDL_RenderPresent(rend);
 
     SDL_Delay(1000 / 60);
   }
